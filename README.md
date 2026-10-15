@@ -31,8 +31,10 @@ Keyboard (all keys can be changed in CONTROLS):
 | Hyperspace    | V or O            | Y                 |
 | Pause         | Esc or P          | Start             |
 
-Steering can be CLASSIC (thrust and reverse buttons) or MODERN (left or right
-flies that way). Change it in SETTINGS.
+Steering is MODERN by default: left or right (arrow keys, A/D, d-pad or left
+stick) flies that way. In SETTINGS you can switch to CLASSIC, like the arcade:
+then left and right do nothing, you gas with the thrust button and turn the
+ship around with the reverse button.
 
 Global keys: F11 or Alt+Enter fullscreen, F10 CRT effect, F9 Senseability
 meter, F12 screenshot.
