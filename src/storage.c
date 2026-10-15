@@ -49,7 +49,7 @@ void settings_defaults(Settings *s)
     s->scale = 3;
     s->volume = 8;
     s->crt = 0;
-    s->scheme = SCHEME_CLASSIC;
+    s->scheme = SCHEME_MODERN;
     s->difficulty = 1;
     s->adaptive = 1;
     s->music = 7;
