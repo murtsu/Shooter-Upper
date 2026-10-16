@@ -1,0 +1,2 @@
+/usr/bin/ar qc libsu_game.a CMakeFiles/su_game.dir/src/game/game.c.o
+/usr/bin/ranlib libsu_game.a
