@@ -1,0 +1,5 @@
+/usr/bin/shooter-upper
+/usr/share/applications/shooter-upper.desktop
+/usr/share/icons/hicolor/scalable/apps/shooter-upper.svg
+/usr/share/doc/shooter-upper/README.md
+/usr/share/doc/shooter-upper/LICENSE
