@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Shooter Upper
+Comment=Arcade defense shooter with 16-bit looks and 8-bit sound
+Exec=shooter-upper
+Icon=shooter-upper
+Terminal=false
+Categories=Game;ArcadeGame;
+Keywords=arcade;shooter;retro;

@@ -1,0 +1,25 @@
+Shooter Upper
+
+Copyright (c) 2026 Marko Tahvanainen. All rights reserved.
+
+This repository is source-available, not open source.
+
+You may read the source code and, on GitHub, view and fork the repository as
+GitHub's Terms of Service allow. You may build the game for your own private,
+non-commercial use.
+
+Without written permission from the copyright holder you may NOT:
+  - sell, rent, or sublicense the game or any part of its code or assets
+  - distribute copies or modified versions, in source or binary form
+  - publish a game, port or clone that is derived from this code
+  - use the name "Shooter Upper" or its logo for another product
+
+Contributions sent to this repository are accepted on the condition that the
+copyright holder may use them as part of the game (see CONTRIBUTING.md).
+
+Third-party code in third_party/ keeps its own license (see
+third_party/README.md). SDL2 is used under the zlib license.
+
+The software is provided "as is", without warranty of any kind.
+
+To ask for permission: murtsu@gmail.com
