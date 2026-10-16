@@ -1,0 +1,181 @@
+Start testing: Oct 15 23:56 CEST
+----------------------------------------------------------
+1/8 Testing: game
+1/8 Test: game
+Command: "/home/claude/shooter-upper/build-rel/test_game"
+Directory: /home/claude/shooter-upper/build-rel
+"game" start time: Oct 15 23:56 CEST
+Output:
+----------------------------------------------------------
+world wraparound
+ship inertia
+scoring and extra lives
+abduction, rescue and landing
+a long fall kills a humanoid
+mutation and planet destruction
+smart bomb
+pods burst into swarmers
+wave progression
+lives and game over
+determinism (same seed + same input = same game)
+soak: demo AI plays 20 minutes without breaking
+  (20 games ended, final wave 1)
+difficulty
+  enemy shots in 40 s: easy 353, normal 556, hard 843, insane 1256
+  sensor nudge: 0.92 -> 495 shots, 1.08 -> 697 shots (normal 556)
+
+61 checks, 0 failed
+<end of output>
+Test time =   0.18 sec
+----------------------------------------------------------
+Test Passed.
+"game" end time: Oct 15 23:56 CEST
+"game" time elapsed: 00:00:00
+----------------------------------------------------------
+
+2/8 Testing: audio
+2/8 Test: audio
+Command: "/home/claude/shooter-upper/build-rel/test_audio"
+Directory: /home/claude/shooter-upper/build-rel
+"audio" start time: Oct 15 23:56 CEST
+Output:
+----------------------------------------------------------
+laser          peak  6275  length 0.09s
+enemy_shot     peak  3200  length 0.07s
+explode_small  peak 13671  length 0.17s
+explode_big    peak 17592  length 0.44s
+smartbomb      peak 18046  length 0.69s
+abduct         peak  3200  length 0.38s
+scream         peak  4928  length 0.32s
+catch          peak 12094  length 0.37s
+landing        peak 12093  length 0.22s
+humanoid_die   peak  7671  length 0.38s
+mutant         peak  4928  length 0.28s
+hyper          peak  6784  length 0.28s
+hyper_back     peak  4224  length 0.12s
+extralife      peak 14653  length 0.70s
+wave_start     peak 12095  length 0.52s
+wave_clear     peak 14655  length 0.90s
+planet_blow    peak 19197  length 1.78s
+ship_death     peak 18045  length 0.78s
+baiter         peak  3200  length 0.60s
+gameover       peak 12095  length 1.61s
+respawn        peak  3520  length 0.12s
+mine_drop      peak  1920  length 0.04s
+menu_move      peak  2816  length 0.03s
+menu_select    peak  3520  length 0.08s
+menu_back      peak  3520  length 0.07s
+title          peak 13658  length 1.91s
+all at once    peak 21054 (limit 32767)
+
+all sounds ok
+<end of output>
+Test time =   0.32 sec
+----------------------------------------------------------
+Test Passed.
+"audio" end time: Oct 15 23:56 CEST
+"audio" time elapsed: 00:00:00
+----------------------------------------------------------
+
+3/8 Testing: music
+3/8 Test: music
+Command: "/home/claude/shooter-upper/build-rel/test_music"
+Directory: /home/claude/shooter-upper/build-rel
+"music" start time: Oct 15 23:56 CEST
+Output:
+----------------------------------------------------------
+all music checks passed (0 skipped)
+<end of output>
+Test time =   1.53 sec
+----------------------------------------------------------
+Test Passed.
+"music" end time: Oct 15 23:56 CEST
+"music" time elapsed: 00:00:01
+----------------------------------------------------------
+
+4/8 Testing: sense
+4/8 Test: sense
+Command: "/home/claude/shooter-upper/build-rel/test_sense"
+Directory: /home/claude/shooter-upper/build-rel
+"sense" start time: Oct 15 23:56 CEST
+Output:
+----------------------------------------------------------
+all sense checks passed
+<end of output>
+Test time =   0.00 sec
+----------------------------------------------------------
+Test Passed.
+"sense" end time: Oct 15 23:56 CEST
+"sense" time elapsed: 00:00:00
+----------------------------------------------------------
+
+5/8 Testing: errors
+5/8 Test: errors
+Command: "/home/claude/shooter-upper/build-rel/test_errors"
+Directory: /home/claude/shooter-upper/build-rel
+"errors" start time: Oct 15 23:56 CEST
+Output:
+----------------------------------------------------------
+NO SOUND: no device found
+NO SOUND: again
+GAME RUNS TOO SLOWLY
+NO SOUND: later
+NO SOUND: much later
+all error checks passed
+<end of output>
+Test time =   0.01 sec
+----------------------------------------------------------
+Test Passed.
+"errors" end time: Oct 15 23:56 CEST
+"errors" time elapsed: 00:00:00
+----------------------------------------------------------
+
+6/8 Testing: cast
+6/8 Test: cast
+Command: "/home/claude/shooter-upper/build-rel/test_cast"
+Directory: /home/claude/shooter-upper/build-rel
+"cast" start time: Oct 15 23:56 CEST
+Output:
+----------------------------------------------------------
+all cast checks passed
+<end of output>
+Test time =   0.01 sec
+----------------------------------------------------------
+Test Passed.
+"cast" end time: Oct 15 23:56 CEST
+"cast" time elapsed: 00:00:00
+----------------------------------------------------------
+
+7/8 Testing: selftest
+7/8 Test: selftest
+Command: "/home/claude/shooter-upper/build-rel/shooter-upper" "--selftest" "--config-dir" "/home/claude/shooter-upper/build-rel/selftest-cfg"
+Directory: /home/claude/shooter-upper/build-rel
+"selftest" start time: Oct 15 23:56 CEST
+Output:
+----------------------------------------------------------
+selftest ok: all screens reached, longest game 408 frames, music volume 10
+<end of output>
+Test time =   4.88 sec
+----------------------------------------------------------
+Test Passed.
+"selftest" end time: Oct 15 23:56 CEST
+"selftest" time elapsed: 00:00:04
+----------------------------------------------------------
+
+8/8 Testing: smoke
+8/8 Test: smoke
+Command: "/home/claude/shooter-upper/build-rel/shooter-upper" "--smoke" "7200" "--config-dir" "/home/claude/shooter-upper/build-rel/smoke-cfg"
+Directory: /home/claude/shooter-upper/build-rel
+"smoke" start time: Oct 15 23:56 CEST
+Output:
+----------------------------------------------------------
+smoke ok: 7200 frames, score 1000, wave 1
+<end of output>
+Test time =   3.98 sec
+----------------------------------------------------------
+Test Passed.
+"smoke" end time: Oct 15 23:56 CEST
+"smoke" time elapsed: 00:00:03
+----------------------------------------------------------
+
+End testing: Oct 15 23:56 CEST
