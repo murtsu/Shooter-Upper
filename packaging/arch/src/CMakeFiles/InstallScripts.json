@@ -1,0 +1,7 @@
+{
+	"InstallScripts" : 
+	[
+		"/home/murtsu/shooter-upper-github/shooter-upper/packaging/arch/src/build/cmake_install.cmake"
+	],
+	"Parallel" : false
+}
