@@ -1,0 +1,1 @@
+/usr/bin/cc -O3 -DNDEBUG CMakeFiles/test_cast.dir/tests/test_cast.c.o CMakeFiles/test_cast.dir/src/cast.c.o CMakeFiles/test_cast.dir/src/gfx.c.o -o test_cast  libsu_game.a -lm 

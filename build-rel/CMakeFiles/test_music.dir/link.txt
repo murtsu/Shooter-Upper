@@ -1,0 +1,1 @@
+/usr/bin/cc -O3 -DNDEBUG CMakeFiles/test_music.dir/tests/test_music.c.o CMakeFiles/test_music.dir/src/music.c.o CMakeFiles/test_music.dir/src/audio.c.o -o test_music  /usr/lib/x86_64-linux-gnu/libSDL2.so -lm 

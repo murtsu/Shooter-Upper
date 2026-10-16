@@ -1,0 +1,1 @@
+/usr/bin/cc -O3 -DNDEBUG CMakeFiles/test_game.dir/tests/test_game.c.o -o test_game  libsu_game.a -lm 

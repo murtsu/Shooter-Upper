@@ -1,0 +1,1 @@
+/usr/bin/cc -O3 -DNDEBUG CMakeFiles/test_sense.dir/tests/test_sense.c.o CMakeFiles/test_sense.dir/src/sense.c.o -o test_sense  -lm 
