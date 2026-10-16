@@ -34,7 +34,7 @@ The change moves slowly (about 8 seconds), so you never feel it jump. It only
 changes enemy speed. The grade you chose (Easy to Insane) sets the base, and
 the sensor only nudges around it. Turn it off and the grade is exact.
 
-Press **F9** in the game to see all the numbers.
+Press **Tab** in the game (F9 works too) to see all the numbers.
 
 ## Why it is built this way
 
