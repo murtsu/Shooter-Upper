@@ -36,7 +36,7 @@ stick) flies that way. In SETTINGS you can switch to CLASSIC, like the arcade:
 then left and right do nothing, you gas with the thrust button and turn the
 ship around with the reverse button.
 
-Global keys: F11 or Alt+Enter fullscreen, F10 CRT effect, F9 Senseability
+Global keys: F11 or Alt+Enter fullscreen, F10 CRT effect, Tab Senseability
 meter, F12 screenshot.
 
 **Grades.** START GAME opens a screen with four grades: Easy, Normal, Hard and
@@ -45,7 +45,7 @@ how many ships and smart bombs you start with.
 
 **Senseability.** The game watches its own frame rate (target: a steady 60)
 and how you play (button presses per second, deaths). With SENSEABILITY on, it
-nudges enemy speed by at most 8 percent to suit you. Press F9 to see the
+nudges enemy speed by at most 8 percent to suit you. Press Tab to see the
 numbers. Details in `docs/SENSEABILITY.md`.
 
 **Music.** The title song plays on every screen except the game itself. The
