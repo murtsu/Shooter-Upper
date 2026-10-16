@@ -51,6 +51,11 @@ static void make_loop(int16_t *buf, long *frames)
     *frames = keep;
 }
 
+/*
+ * Makes buf the current song. It is made loopable first, the old song is
+ * swapped out under the audio lock, and then freed. src says where the song
+ * came from.
+ */
 static void install(int16_t *buf, long frames, MusicSource src)
 {
     make_loop(buf, &frames);
@@ -62,6 +67,12 @@ static void install(int16_t *buf, long frames, MusicSource src)
     free(old);
 }
 
+/*
+ * Loads an MP3 from disk and turns it into a song the mixer can play. Every
+ * failure gives its own result code so the game can tell the player what went
+ * wrong. Steps: read the file, skip any ID3 tag, decode frame by frame, check
+ * length, convert to 44100 Hz, install.
+ */
 MusicResult music_load_file(const char *path, MusicSource as)
 {
     FILE *f = fopen(path, "rb");
@@ -134,6 +145,7 @@ MusicResult music_load_file(const char *path, MusicSource as)
     return MR_OK;
 }
 
+/* Turns a load result into a short message for the error dialog. */
 const char *music_result_text(MusicResult r)
 {
     switch (r) {
@@ -158,11 +170,16 @@ const char *music_result_text(MusicResult r)
 #define BARS 20
 #define STEPS_TOTAL (BARS * 16)
 
+/*
+ * Converts a MIDI note number to a frequency in Hz. Note 69 is the A at 440 Hz
+ * and every 12 notes doubles the pitch.
+ */
 static float hz_of(int midi) { return 440.f * powf(2.f, (float)(midi - 69) / 12.f); }
 
 typedef struct { float *l, *r; long n; } Mix;
 
 static uint32_t g_noise = 1;
+/* A cheap random number between -1 and 1, used for the drums. */
 static float noise(void) { g_noise = g_noise * 1664525u + 1013904223u; return (float)(g_noise >> 8) / 8388608.f - 1.f; }
 
 /* wave: 0 pulse(duty), 1 triangle, 2 noise, 3 kick (triangle sweeping down) */
@@ -190,6 +207,11 @@ static void put(Mix *m, long start, int len, int wave, float f, float duty, floa
     }
 }
 
+/*
+ * Composes the built-in chip tune in code and installs it. Nothing is read
+ * from disk: drums, bass, arpeggio and lead are all added step by step, then
+ * the result is scaled so the loudest point just fits.
+ */
 void music_load_builtin(void)
 {
     static const int root[4]    = { 33, 29, 36, 31 };                 /* A1 F1 C2 G1 */
@@ -260,9 +282,15 @@ void music_load_builtin(void)
 /* --------------------------------------------------------------- playback */
 
 MusicSource music_source(void) { return g_src; }
+/* The length of the song in seconds, or 0 if there is none. */
 float music_seconds(void) { return g_frames ? (float)g_frames / RATE : 0.f; }
+/* True while the music is playing or fading in. */
 bool  music_playing(void) { return g_target > 0.f; }
 
+/*
+ * Sets the music volume from 0 to 1. It takes effect at once if the music is
+ * playing.
+ */
 void music_set_volume(float v)
 {
     if (v < 0.f) v = 0.f;
@@ -273,6 +301,10 @@ void music_set_volume(float v)
     audio_unlock();
 }
 
+/*
+ * Starts a smooth change of loudness to target over FADE_MS milliseconds, so
+ * the song never starts or stops with a click.
+ */
 static void fade_to(float target)
 {
     audio_lock();
@@ -281,6 +313,10 @@ static void fade_to(float target)
     audio_unlock();
 }
 
+/*
+ * Starts the song from the beginning with a fade in. Does nothing if no song
+ * is loaded.
+ */
 void music_play(void)
 {
     if (!g_buf) return;
@@ -290,8 +326,15 @@ void music_play(void)
     fade_to(g_vol);
 }
 
+/* Fades the song out. The song stays loaded. */
 void music_stop(void) { fade_to(0.f); }
 
+/*
+ * Called by the audio callback. Adds the song on top of the sound already in
+ * out, one frame at a time, with the fade applied, and wraps around at the end
+ * so it loops. Sums are clamped so loud passages cannot wrap around into
+ * noise.
+ */
 void music_mix(int16_t *out, int frames)
 {
     if (!g_buf || (g_target <= 0.f && g_gain <= 0.f)) return;
@@ -308,6 +351,11 @@ void music_mix(int16_t *out, int frames)
     }
 }
 
+/*
+ * Saves the current song as a WAV file, so players can listen to it or use it
+ * as a base for their own. Returns false if there is no song or the file
+ * cannot be written.
+ */
 bool music_export_wav(const char *path)
 {
     if (!g_buf) return false;
@@ -324,4 +372,5 @@ bool music_export_wav(const char *path)
     return fclose(f) == 0;
 }
 
+/* Frees the song. Called when the game quits. */
 void music_free(void) { discard(); }

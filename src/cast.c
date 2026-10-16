@@ -44,9 +44,20 @@ static int   g_t;
 static int   g_done_t;
 static unsigned g_rng = 1;
 
+/*
+ * A tiny random number generator (xorshift). It has its own seed, so the same
+ * seed always gives the same parade. That makes the parade testable:
+ * test_cast.c can run many seeds and check that every one of them ends.
+ */
 static unsigned rnd(void) { g_rng ^= g_rng << 13; g_rng ^= g_rng >> 17; g_rng ^= g_rng << 5; return g_rng; }
+/* A random number between 0 and 1, made from rnd(). */
 static float rndf(void) { return (float)(rnd() >> 8) / 16777216.f; }
 
+/*
+ * Starts a new parade. Clears all actors and works out where each one should
+ * end up: a grid of 3 columns, one cell per actor. The actors themselves
+ * appear later, one at a time, in cast_step().
+ */
 void cast_start(unsigned seed)
 {
     g_rng = seed ? seed : 1;
@@ -59,6 +70,10 @@ void cast_start(unsigned seed)
     }
 }
 
+/*
+ * Puts one actor on the screen at a random edge (left, right, top or bottom),
+ * already moving inwards at speed 3.
+ */
 static void spawn(Actor *a)
 {
     int side = (int)(rnd() % 4);
@@ -91,6 +106,14 @@ static void new_push(Actor *a)
     a->timer = 5 + (int)(rnd() % 14);
 }
 
+/*
+ * Moves one actor one frame, as if a kid were steering it with a joystick. The
+ * kid pushes in random directions at first, so the actor swings around wildly.
+ * After about 2.5 seconds (age 150) the random pushes fade out and a gentle
+ * pull towards the target spot takes over. That is what guarantees that every
+ * parade ends. When the actor is close to its spot and slow enough, it locks
+ * in place and its name starts to type itself in.
+ */
 static void step_actor(Actor *a)
 {
     a->age++;
@@ -129,6 +152,11 @@ static void step_actor(Actor *a)
     }
 }
 
+/*
+ * Runs the parade one frame. Starts the next actor when it is its turn (every
+ * START_GAP frames), moves all active actors, and notes the moment when all of
+ * them are locked in place.
+ */
 void cast_step(void)
 {
     g_t++;
@@ -142,10 +170,22 @@ void cast_step(void)
     if (locked == N && g_done_t < 0) g_done_t = g_t;
 }
 
+/*
+ * True when everyone has been locked in place for HOLD_FRAMES frames (about 4
+ * seconds). main.c then moves on to the next screen.
+ */
 bool cast_done(void) { return g_done_t >= 0 && g_t - g_done_t > HOLD_FRAMES; }
+/* How many actors have reached their spot so far. Used by the tests. */
 int  cast_locked(void) { int c = 0; for (int i = 0; i < N; i++) if (g_a[i].locked) c++; return c; }
+/* How many actors there are in total. */
 int  cast_count(void) { return N; }
 
+/*
+ * Draws the parade: a dark layer over the background, the title, then each
+ * actor. A locked actor does a little hop when it lands and then wobbles
+ * gently. Its name, role and points are drawn a couple of letters at a time so
+ * the text looks like it is being typed.
+ */
 void cast_draw(int frame)
 {
     gfx_blend_rect(0, 0, SCREEN_W, SCREEN_H, RGB(4,2,20), 110);

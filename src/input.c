@@ -25,6 +25,11 @@ void input_test_key(SDL_Scancode sc, bool down)
     if (sc > 0 && sc < SDL_NUM_SCANCODES) g_forced[sc] = down;
 }
 
+/*
+ * Fills in the factory key and controller buttons for every action. Each
+ * action gets two keyboard keys and one pad button. BIND is a small macro that
+ * saves typing the same three lines ten times.
+ */
 void input_default_bindings(Binding *b)
 {
     #define BIND(a, k0, k1, p) b[a].key[0] = (k0); b[a].key[1] = (k1); b[a].pad = (p)
@@ -53,6 +58,10 @@ static void open_pad(int joy_index)
     }
 }
 
+/*
+ * Closes the controller with the given SDL id, for example after it was
+ * unplugged, and frees its slot so another one can take its place.
+ */
 static void close_pad(SDL_JoystickID id)
 {
     for (int i = 0; i < MAX_PADS; i++) {
@@ -63,6 +72,10 @@ static void close_pad(SDL_JoystickID id)
     }
 }
 
+/*
+ * Starts the controller part of SDL and opens every controller that is already
+ * plugged in. Controllers plugged in later arrive as events.
+ */
 void input_init(void)
 {
     SDL_InitSubSystem(SDL_INIT_GAMECONTROLLER);
@@ -71,18 +84,25 @@ void input_init(void)
     for (int i = 0; i < n; i++) open_pad(i);
 }
 
+/* Closes all open controllers. Called once when the game quits. */
 void input_shutdown(void)
 {
     for (int i = 0; i < MAX_PADS; i++)
         if (g_pad[i]) { SDL_GameControllerClose(g_pad[i]); g_pad[i] = NULL; }
 }
 
+/* True if at least one controller is open right now. */
 bool input_pad_connected(void)
 {
     for (int i = 0; i < MAX_PADS; i++) if (g_pad[i]) return true;
     return false;
 }
 
+/*
+ * Reads one analog stick or trigger from all controllers. Returns -1 to 1 (0
+ * to 1 for triggers). If several controllers move, the one pushed furthest
+ * wins.
+ */
 static float axis(SDL_GameControllerAxis ax)
 {
     float best = 0.f;
@@ -94,6 +114,10 @@ static float axis(SDL_GameControllerAxis ax)
     return best;
 }
 
+/*
+ * True if the given controller button is held on any controller. A negative
+ * number means no button is bound, so the answer is false.
+ */
 static bool button(int b)
 {
     if (b < 0) return false;
@@ -117,6 +141,12 @@ static bool axis_for(Action a)
     }
 }
 
+/*
+ * Called once per frame. Works out which actions are held (keyboard or
+ * controller), sets a one-frame pulse when an action was just pressed, and
+ * turns stick flicks into menu moves. It also remembers if the player last
+ * used the keyboard or a pad.
+ */
 void input_update(void)
 {
     const Uint8 *ks = SDL_GetKeyboardState(NULL);
@@ -143,6 +173,11 @@ void input_update(void)
     }
 }
 
+/*
+ * Called for every SDL event. Handles controllers being plugged in or out, and
+ * turns key and button presses into menu moves (up, down, confirm, back). It
+ * also remembers the last key or button, which the rebinding screen uses.
+ */
 void input_handle_event(const SDL_Event *e)
 {
     switch (e->type) {
@@ -181,6 +216,12 @@ void input_handle_event(const SDL_Event *e)
     }
 }
 
+/*
+ * Packs the current input into the Controls struct the game logic reads. The
+ * game never sees keys or pads, only this struct. In MODERN steering the
+ * arrows fly that way, in CLASSIC they do nothing and thrust and reverse have
+ * their own buttons.
+ */
 void input_make_controls(Controls *c, Scheme scheme)
 {
     memset(c, 0, sizeof *c);
@@ -202,23 +243,41 @@ void input_make_controls(Controls *c, Scheme scheme)
     }
 }
 
+/*
+ * Forgets the one-frame pulses once the game has used them, so a bomb press
+ * counts only once.
+ */
 void input_clear_pulses(void) { memset(g_pulse, 0, sizeof g_pulse); }
+/* True while the given action is held down. */
 bool input_held(Action a) { return g_held[a]; }
 
+/*
+ * True once for each menu key press. Reading it also clears it, so one press
+ * moves the menu one step.
+ */
 bool input_menu(MenuKey k)
 {
     bool v = g_menu[k];
     g_menu[k] = false;
     return v;
 }
+/* Throws away all waiting menu presses, for example when a new screen opens. */
 void input_menu_clear(void) { memset(g_menu, 0, sizeof g_menu); }
 
+/*
+ * Returns the last key pressed and then forgets it. Gives SDL_SCANCODE_UNKNOWN
+ * if nothing was pressed. Used when the player picks a new key.
+ */
 SDL_Scancode input_take_key(void)
 {
     SDL_Scancode k = g_last_key;
     g_last_key = SDL_SCANCODE_UNKNOWN;
     return k;
 }
+/*
+ * Returns the last controller button pressed and then forgets it. Gives -1 if
+ * nothing was pressed.
+ */
 int input_take_button(void)
 {
     int b = g_last_button;
@@ -226,6 +285,10 @@ int input_take_button(void)
     return b;
 }
 
+/*
+ * Tells if the player used the keyboard or a controller last, so the screens
+ * can show the matching button names.
+ */
 Device input_last_device(void) { return g_device; }
 
 /* ---- labels ------------------------------------------------------------- */
@@ -237,6 +300,10 @@ static SDL_GameControllerType pad_type(void)
     return SDL_CONTROLLER_TYPE_XBOX360;
 }
 
+/*
+ * Gives the name of a controller button as printed on that kind of pad, for
+ * example CROSS on PlayStation and A on Xbox.
+ */
 const char *input_button_label(int b)
 {
     if (b < 0) return "NONE";
@@ -262,6 +329,10 @@ const char *input_button_label(int b)
     }
 }
 
+/*
+ * Gives a key name in capital letters for the screen. It cycles through four
+ * small buffers, so a few labels can be used in the same line of code.
+ */
 const char *input_key_label(SDL_Scancode sc)
 {
     static char buf[4][24];
@@ -276,17 +347,20 @@ const char *input_key_label(SDL_Scancode sc)
     return out;
 }
 
+/* The name of the confirm button for the device in use: the A button or ENTER. */
 const char *input_confirm_label(void)
 {
     if (g_device == DEV_PAD) return input_button_label(SDL_CONTROLLER_BUTTON_A);
     return "ENTER";
 }
+/* The name of the back button for the device in use: the B button or ESC. */
 const char *input_back_label(void)
 {
     if (g_device == DEV_PAD) return input_button_label(SDL_CONTROLLER_BUTTON_B);
     return "ESC";
 }
 
+/* The text shown for an action on the controls screen. */
 const char *input_action_name(Action a)
 {
     static const char *n[ACT_COUNT] = {

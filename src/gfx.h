@@ -63,6 +63,8 @@ void gfx_draw_actor(ActorKind k, int cx, int cy, int frame, bool flip, int scale
 void gfx_draw_space_bg(float camx, bool planet, int frame);   /* sky, nebula, stars, mountains */
 void gfx_draw_game(const Game *g, int frame);                 /* world + HUD + overlays */
 void gfx_draw_logo(int y, int frame);                         /* the title logo */
+#define SPLASH_FRAMES 270                                     /* the start-up splash lasts 4.5 s */
+void gfx_draw_splash(int t);                                  /* start-up animation, t = frames since start */
 void gfx_draw_ship_icon(int x, int y);                        /* tiny ship for lives */
 
 /* effects: feed game events in, step once per simulation step */

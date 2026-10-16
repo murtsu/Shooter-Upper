@@ -126,6 +126,13 @@ static const Note s_mback[]   = { N(0, CH_P1, W_P50, 900, 500, 0.5f, 70, 0.6f) }
  * because the pitches come from a formula, not from a literal number. */
 static Note s_title[40];
 static int  s_title_n = 0;
+/*
+ * Fills the s_title array with the notes of the title jingle. Each note's
+ * pitch is worked out from a MIDI note number with mf(), so this has to run
+ * once at start-up instead of being written as a fixed table. Three parts play
+ * together: the melody (square wave), a bass line (triangle wave) and a quiet
+ * echo of the melody an octave lower (second square channel).
+ */
 static void build_title(void)
 {
     static const int mel[16] = { 69,72,76,81, 79,76,72,76, 74,77,81,86, 84,81,77,81 };
@@ -150,6 +157,11 @@ static const char *s_names[SFX_COUNT] = {
     "mine_drop", "menu_move", "menu_select", "menu_back", "title"
 };
 
+/*
+ * Collects every sound effect recipe into the s_defs table, so that
+ * audio_play() can find a recipe by its Sfx number. Called once from
+ * audio_init().
+ */
 static void build_defs(void)
 {
     build_title();
@@ -194,6 +206,12 @@ static SDL_AudioDeviceID g_dev = 0;
 
 static const float k_gain[CH_COUNT] = { 0.22f, 0.20f, 0.28f, 0.20f };
 
+/*
+ * Starts one note right now. Each channel (CH_P1, CH_P2, CH_TRI, CH_NOI) can
+ * only play one note at a time, so a new note simply replaces whatever that
+ * channel was doing. This copies the note's settings into the channel's Voice
+ * and rewinds it to the start.
+ */
 static void trigger(const Note *n)
 {
     Voice *v = &g_voice[n->ch];
@@ -208,6 +226,17 @@ static void trigger(const Note *n)
     if (v->lfsr == 0) v->lfsr = 0x4000;
 }
 
+/*
+ * Makes the sound. The sound card asks for a batch of samples (one sample is
+ * one tiny measurement of the sound wave, 44100 per second) and this function
+ * fills the batch. For every sample it does four things: 1) starts notes that
+ * are due, 2) works out the current value of each of the four channels (pitch
+ * slides from f0 to f1, volume holds and then fades), 3) adds the channels
+ * together and applies the master volume, 4) writes the result to both the
+ * left and right speaker. At the end the music layer is mixed on top. Samples
+ * are 16-bit numbers, so values are kept between -1 and 1 and then scaled to
+ * fit.
+ */
 void audio_render(int16_t *out, int frames)
 {
     for (int i = 0; i < frames; i++, g_now++) {
@@ -262,15 +291,32 @@ void audio_render(int16_t *out, int frames)
     music_mix(out, frames);          /* the song goes underneath the sound effects */
 }
 
+/*
+ * The sound card calls audio_render() on its own thread. Anything else that
+ * touches the sound data must hold this lock so the two threads never change
+ * the same data at the same moment. audio_unlock() lets go again.
+ */
 void audio_lock(void)   { if (g_dev) SDL_LockAudioDevice(g_dev); }
 void audio_unlock(void) { if (g_dev) SDL_UnlockAudioDevice(g_dev); }
 
+/*
+ * The function SDL calls whenever the sound card wants more sound. len is in
+ * bytes: each frame is 4 bytes (2 speakers times 2 bytes), so len / 4 is the
+ * number of frames to make.
+ */
 static void SDLCALL sdl_cb(void *ud, Uint8 *stream, int len)
 {
     (void)ud;
     audio_render((int16_t *)stream, len / 4);
 }
 
+/*
+ * Gets the sound system ready. With open_device false (used by the tests and
+ * by --no-audio) only the sound tables are built and nothing is played.
+ * Otherwise it opens the default sound card with 44100 Hz, 16-bit, stereo, and
+ * starts it. Returns false if there is no sound card, so main.c can show a
+ * dialog instead of crashing.
+ */
 bool audio_init(bool open_device)
 {
     build_defs();
@@ -293,11 +339,19 @@ bool audio_init(bool open_device)
     return true;
 }
 
+/* Closes the sound card. Safe to call even if it was never opened. */
 void audio_shutdown(void)
 {
     if (g_dev) { SDL_CloseAudioDevice(g_dev); g_dev = 0; }
 }
 
+/*
+ * Plays a sound effect by queueing its notes. Each note goes into a free slot
+ * in the pending list together with the time it should start (delay_ms
+ * converted to samples). audio_render() later starts them when their time
+ * comes. If all 96 slots are full the extra notes are dropped, which is better
+ * than stalling the game.
+ */
 void audio_play(Sfx s)
 {
     if (s < 0 || s >= SFX_COUNT) return;
@@ -315,6 +369,7 @@ void audio_play(Sfx s)
     if (g_dev) SDL_UnlockAudioDevice(g_dev);
 }
 
+/* Silences everything at once: all four channels and all queued notes. */
 void audio_stop_all(void)
 {
     if (g_dev) SDL_LockAudioDevice(g_dev);
@@ -323,6 +378,10 @@ void audio_stop_all(void)
     if (g_dev) SDL_UnlockAudioDevice(g_dev);
 }
 
+/*
+ * Sets the master volume. 0 is silent and 1 is full. Values outside that range
+ * are clamped so a bad setting can never blast the speakers.
+ */
 void audio_set_volume(float v)
 {
     if (v < 0.f) v = 0.f;
@@ -330,4 +389,8 @@ void audio_set_volume(float v)
     g_master = v;
 }
 
+/*
+ * Returns the text name of a sound effect, such as "laser". Used by tests and
+ * debugging. Gives "?" for a number that does not exist.
+ */
 const char *audio_sfx_name(Sfx s) { return (s >= 0 && s < SFX_COUNT) ? s_names[s] : "?"; }

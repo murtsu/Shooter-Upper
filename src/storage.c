@@ -14,11 +14,21 @@ ScoreEntry g_scores[SCORE_SLOTS];
 
 static char g_dir[512] = "";
 
+/*
+ * Chooses the folder for settings and scores. Used by --config-dir and by the
+ * tests, so they never touch a real player's files.
+ */
 void storage_set_dir(const char *dir)
 {
     snprintf(g_dir, sizeof g_dir, "%s", dir);
 }
 
+/*
+ * Makes sure the settings folder exists and remembers where it is. Without
+ * --config-dir it uses XDG_CONFIG_HOME, or the .config folder in the home
+ * directory, or the current folder as a last resort. The folder is called
+ * shooter-upper.
+ */
 static void ensure_dir(void)
 {
     if (g_dir[0]) { mkdir(g_dir, 0755); return; }
@@ -33,8 +43,13 @@ static void ensure_dir(void)
     mkdir(g_dir, 0755);
 }
 
+/* Returns the path of the settings folder, creating it if needed. */
 const char *storage_dir(void) { ensure_dir(); return g_dir; }
 
+/*
+ * Builds the full path of a file inside the settings folder, for example
+ * settings.cfg.
+ */
 static void path_of(char *out, size_t n, const char *file)
 {
     ensure_dir();
@@ -60,6 +75,11 @@ static const char *k_act_key[ACT_COUNT] = {
     "up", "down", "left", "right", "thrust", "reverse", "fire", "bomb", "hyper", "pause"
 };
 
+/*
+ * Writes settings.cfg as plain text, one name=value per line, so it is easy to
+ * read and fix by hand. Returns false if the file could not be written, so the
+ * caller can show a dialog.
+ */
 bool settings_save(void)
 {
     char p[600];
@@ -76,8 +96,14 @@ bool settings_save(void)
     return fclose(f) == 0;
 }
 
+/* Keeps a whole number between lo and hi. */
 static int clampi(int v, int lo, int hi) { return v < lo ? lo : (v > hi ? hi : v); }
 
+/*
+ * Reads settings.cfg. It starts from the defaults and then replaces only the
+ * values it understands, so a missing or damaged file just gives the defaults.
+ * Every number is clamped to a safe range.
+ */
 void settings_load(void)
 {
     settings_defaults(&g_set);
@@ -127,6 +153,10 @@ void scores_defaults(void)
     }
 }
 
+/*
+ * Writes scores.txt: one line per place with the name, the score and the wave.
+ * Returns false on failure.
+ */
 bool scores_save(void)
 {
     char p[600];
@@ -138,6 +168,11 @@ bool scores_save(void)
     return fclose(f) == 0;
 }
 
+/*
+ * Reads scores.txt over the defaults. If the file is short or damaged it stops
+ * at the first bad line and the rest stay as defaults. Names are cut to 3
+ * letters.
+ */
 void scores_load(void)
 {
     scores_defaults();
@@ -155,6 +190,10 @@ void scores_load(void)
     fclose(f);
 }
 
+/*
+ * Tells which place a score would get in the table (0 is first), or -1 if it
+ * does not make the list. A score of 0 never does.
+ */
 int scores_rank(uint32_t score)
 {
     if (score == 0) return -1;
@@ -163,6 +202,10 @@ int scores_rank(uint32_t score)
     return -1;
 }
 
+/*
+ * Puts a new score at the given place and moves everyone below it down one
+ * step. The last entry falls off the list.
+ */
 void scores_insert(int rank, const char *name, uint32_t score, int wave)
 {
     if (rank < 0 || rank >= SCORE_SLOTS) return;

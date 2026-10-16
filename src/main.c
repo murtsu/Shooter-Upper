@@ -32,7 +32,7 @@
 
 typedef enum {
     ST_TITLE, ST_DIFF, ST_PLAY, ST_PAUSE, ST_NAME, ST_SETTINGS, ST_CONTROLS,
-    ST_SCORES, ST_HELP, ST_CREDITS, ST_CAST, ST_DEMO
+    ST_SCORES, ST_HELP, ST_CREDITS, ST_CAST, ST_DEMO, ST_SPLASH
 } State;
 
 #define IDLE_TO_CAST (60 * 20)         /* 20 seconds without input */
@@ -45,7 +45,7 @@ static bool g_running = true;
 static bool g_vsync = true;
 static bool g_no_audio;
 
-static State g_state = ST_TITLE;
+static State g_state = ST_SPLASH;      /* the game opens with the splash */
 static Game  g_game;
 static int   g_menu_sel;
 static int   g_frame;          /* free-running, for animation              */
@@ -61,7 +61,7 @@ static State g_return_state = ST_TITLE;   /* where settings go back to    */
 static char  g_notice[64];
 static int   g_notice_timer;
 static int   g_err_sel;        /* selected button of the error dialog      */
-static bool  g_show_sense;     /* F9 meter                                  */
+static bool  g_show_sense;     /* TAB meter (F9 too)                        */
 static bool  g_music_on;
 static int   g_slow_frames;
 static double g_now_ms;        /* the clock the sensor uses                 */
@@ -80,8 +80,16 @@ static void notice(const char *s)
     g_notice_timer = 120;
 }
 
+/*
+ * Plays a sound effect, unless the game runs without a window and sound card
+ * (tests and screenshots).
+ */
 static void sfx(Sfx s) { if (!g_headless) audio_play(s); }
 
+/*
+ * Sends the sound and music volume from the settings (0 to 10) to the audio
+ * code (0 to 1).
+ */
 static void apply_volume(void)
 {
     audio_set_volume((float)g_set.volume / 10.0f);
@@ -96,6 +104,10 @@ static bool save_settings(void)
     return ok;
 }
 
+/*
+ * Makes the window match the settings: fullscreen, or windowed at the chosen
+ * size, centered on the screen.
+ */
 static void apply_window(void)
 {
     if (!g_win) return;
@@ -108,6 +120,11 @@ static void apply_window(void)
     }
 }
 
+/*
+ * Switches to another screen. The menu choice, the idle timer and any waiting
+ * key presses are reset, so a key held in the old screen cannot do something
+ * in the new one.
+ */
 static void go(State s)
 {
     g_state = s;
@@ -117,6 +134,10 @@ static void go(State s)
     input_menu_clear();
 }
 
+/*
+ * Starts a new game with the chosen difficulty. The random seed comes from the
+ * clock, so every game is different.
+ */
 static void start_game(void)
 {
     game_init(&g_game, (uint32_t)time(NULL) ^ (uint32_t)SDL_GetTicks());
@@ -128,6 +149,10 @@ static void start_game(void)
     g_prev_pause = true;      /* a key still held from the menu must not pause */
 }
 
+/*
+ * Starts the demo that plays by itself, with a fixed seed that depends on the
+ * frame number.
+ */
 static void start_demo(void)
 {
     game_init(&g_game, 20260 + (uint32_t)g_frame);
@@ -151,6 +176,11 @@ static const struct { int ev; Sfx sfx; } EVSFX[] = {
     { EV_RESPAWN, SFX_RESPAWN }, { EV_MINE_DROP, SFX_MINE_DROP },
 };
 
+/*
+ * Hands this step's game events to the visual effects and, in a real game, to
+ * the sound code and the sensor (a death counts for the sensor). Then the list
+ * is emptied.
+ */
 static void drain_events(bool real_game)
 {
     for (int i = 0; i < g_game.nev; i++) {
@@ -195,11 +225,19 @@ static int menu_nav(int count)
     return 0;
 }
 
+/*
+ * Draws a list of menu lines, with the chosen one highlighted. y0 is the top
+ * and step the distance between lines.
+ */
 static void draw_menu(const char *const *items, int n, int y0, int step)
 {
     for (int i = 0; i < n; i++) gfx_menu_item(y0 + i * step, items[i], i == g_menu_sel, g_frame);
 }
 
+/*
+ * Draws the line at the bottom that tells which button selects and which goes
+ * back, with names that match the keyboard or the controller in use.
+ */
 static void draw_hint(void)
 {
     char buf[80];
@@ -207,11 +245,16 @@ static void draw_hint(void)
     gfx_text_center(SCREEN_H - 14, buf, RGB(110,120,170), 1);
 }
 
+/* Draws the moving space background used behind most menus. */
 static void draw_bg(void)
 {
     gfx_draw_space_bg((float)g_frame * 0.7f, true, g_frame);
 }
 
+/*
+ * Draws a dark see-through box that makes text easy to read over the
+ * background.
+ */
 static void panel(int x, int y, int w, int h)
 {
     gfx_blend_rect(x, y, w, h, RGB(4,4,24), 185);
@@ -228,6 +271,10 @@ static const char SCROLL_TEXT[] =
     "SAVE THE HUMANOIDS ...  THEY ARE SMALL AND THEY DO NOT SHOOT BACK ...  "
     "GREETINGS TO EVERYONE WHO EVER WAITED FOR A TAPE TO LOAD ...         ";
 
+/*
+ * The title screen each frame: move in the menu, start what was chosen, and
+ * after 20 seconds of nothing begin the parade of characters.
+ */
 static void update_title(void)
 {
     menu_nav(N_TITLE);
@@ -247,6 +294,10 @@ static void update_title(void)
     if (++g_idle > IDLE_TO_CAST) { cast_start((unsigned)time(NULL) + (unsigned)g_frame); go(ST_CAST); }
 }
 
+/*
+ * Draws the title screen: moving color bars, the logo, the menu, the scrolling
+ * text and the version number.
+ */
 static void draw_title(void)
 {
     draw_bg();
@@ -260,6 +311,23 @@ static void draw_title(void)
     gfx_text(2, SCREEN_H - 9, buf, RGB(70,75,120), 1);
 }
 
+/* ---- start-up splash ---- */
+static void update_splash(void)
+{
+    bool any = input_held(ACT_FIRE);
+    for (int k = 0; k < MN_COUNT; k++) if (input_menu((MenuKey)k)) any = true;
+    if (any || ++g_state_timer > SPLASH_FRAMES) go(ST_TITLE);
+}
+
+/*
+ * Draws the start-up animation. How far along it is comes from the screen's
+ * timer.
+ */
+static void draw_splash(void)
+{
+    gfx_draw_splash(g_state_timer);
+}
+
 /* ---- the idle parade ---- */
 static void update_cast(void)
 {
@@ -270,6 +338,7 @@ static void update_cast(void)
     if (cast_done()) start_demo();
 }
 
+/* Draws the parade of characters on top of the space background. */
 static void draw_cast(void)
 {
     draw_bg();
@@ -284,6 +353,7 @@ static const struct { const char *name; int ramp; const char *line; } DIFFS[DIFF
     { "INSANE", RAMP_RED,   "GOOD LUCK. YOU WILL NEED IT. 2 SHIPS, 1 BOMB." },
 };
 
+/* The grade screen each frame. Choosing a grade saves it and starts the game. */
 static void update_diff(void)
 {
     menu_nav(DIFF_COUNT);
@@ -297,6 +367,10 @@ static void update_diff(void)
     if (input_menu(MN_BACK)) { sfx(SFX_MENU_BACK); go(ST_TITLE); }
 }
 
+/*
+ * Draws the grade screen with the four grades and a line about each. The
+ * bottom line tells if the senseability is on.
+ */
 static void draw_diff(void)
 {
     draw_bg();
@@ -333,6 +407,7 @@ static void update_demo(void)
     if (++g_state_timer > 60 * 40 || g_game.finished) { g_attract_scores = true; go(ST_SCORES); }
 }
 
+/* Draws the demo as an ordinary game with a blinking PRESS ANY BUTTON on top. */
 static void draw_demo(void)
 {
     gfx_draw_game(&g_game, g_frame);
@@ -349,6 +424,7 @@ static void update_scores(void)
     if (g_attract_scores && ++g_state_timer > 60 * 8) go(ST_TITLE);
 }
 
+/* Draws the high score table. */
 static void draw_scores(void)
 {
     draw_bg();
@@ -370,6 +446,7 @@ static void update_simple_back(void)
     if (input_menu(MN_BACK) || input_menu(MN_CONFIRM)) { sfx(SFX_MENU_BACK); go(ST_TITLE); }
 }
 
+/* Draws the how-to-play page. */
 static void draw_help(void)
 {
     draw_bg();
@@ -408,15 +485,24 @@ static void draw_credits(void)
                       "THEME SONG: BUILT-IN CHIP TUNE";
     snprintf(buf, sizeof buf, "%s", src);
     gfx_text_center(100, buf, RGB(205,210,245), 1);
-    gfx_text_center(124, "BUILT WITH C AND SDL2", RGB(120,220,255), 1);
-    gfx_text_center(136, "SDL2 IS FREE SOFTWARE UNDER THE ZLIB LICENSE", RGB(120,130,190), 1);
-    gfx_text_center(148, "MP3 DECODER: MINIMP3, PUBLIC DOMAIN", RGB(120,130,190), 1);
+    gfx_text_center(116, "BUILT WITH C AND SDL2", RGB(120,220,255), 1);
+    gfx_text_center(126, "SDL2 IS FREE SOFTWARE UNDER THE ZLIB LICENSE", RGB(120,130,190), 1);
+    gfx_text_center(136, "MP3 DECODER: MINIMP3, PUBLIC DOMAIN", RGB(120,130,190), 1);
+    gfx_text_center(156, "IDEA, DIRECTION AND TESTING", RGB(255,225,120), 1);
+    gfx_text_center(166, "MARKO TAHVANAINEN", RGB(255,255,255), 1);
+    gfx_text_center(180, "DESIGN AND CODE: CLAUDE, ANTHROPIC", RGB(130,225,255), 1);
+    gfx_text_center(192, "COPYRIGHT 2026 MARKO TAHVANAINEN AND CLAUDE", RGB(120,130,190), 1);
     draw_hint();
 }
 
 /* ---- settings ---- */
 #define N_SET 8
 
+/*
+ * The settings screen each frame. Left and right change the chosen value (or
+ * confirm toggles it), the changes take effect at once, and leaving the screen
+ * saves them.
+ */
 static void update_settings(void)
 {
     int d = menu_nav(N_SET);
@@ -439,6 +525,7 @@ static void update_settings(void)
     if (input_menu(MN_BACK)) { save_settings(); sfx(SFX_MENU_BACK); go(g_return_state); }
 }
 
+/* Makes a little bar like ++++++.... for a value from 0 to 10. */
 static void bar_text(char *out, size_t n, int v)
 {
     char bar[16];
@@ -447,6 +534,7 @@ static void bar_text(char *out, size_t n, int v)
     snprintf(out, n, "%s", bar);
 }
 
+/* Draws the settings screen with every setting and its current value. */
 static void draw_settings(void)
 {
     draw_bg();
@@ -477,7 +565,7 @@ static void draw_settings(void)
                                               : "MODERN: LEFT OR RIGHT FLIES THAT WAY";
     if (g_menu_sel == 6) help = "THE GAME TUNES ITSELF UP TO 8 PERCENT TO FIT YOU";
     gfx_text_center(170, help, RGB(150,200,230), 1);
-    gfx_text_center(184, "F9 SHOWS THE SENSEABILITY METER", RGB(90,100,150), 1);
+    gfx_text_center(184, "TAB SHOWS THE SENSEABILITY METER", RGB(90,100,150), 1);
     draw_hint();
 }
 
@@ -516,6 +604,11 @@ static void draw_controls(void)
     draw_hint();
 }
 
+/*
+ * The controls screen each frame. Choose a row, press confirm, then press the
+ * new key or button. If it is already used by another action the two swap
+ * places, so nothing is left without a key.
+ */
 static void update_controls(void)
 {
     if (g_rebind >= 0) {
@@ -580,6 +673,10 @@ static void update_play(void)
 
 static const char *const PAUSE_ITEMS[] = { "RESUME", "SETTINGS", "QUIT TO TITLE" };
 
+/*
+ * The pause menu each frame. Resume with the pause key, back or the first
+ * choice. Settings and quit to title are the other choices.
+ */
 static void update_pause(void)
 {
     g_menu_sel %= 3;
@@ -598,6 +695,7 @@ static void update_pause(void)
     if (resume) { g_state = ST_PLAY; g_prev_pause = true; input_menu_clear(); sense_reset(); }
 }
 
+/* Draws the frozen game, darkened, with PAUSED and the pause menu on top. */
 static void draw_pause(void)
 {
     gfx_draw_game(&g_game, g_frame);
@@ -632,6 +730,10 @@ static void update_name(void)
     }
 }
 
+/*
+ * Draws the new high score screen with the three letters and a marker under
+ * the one being edited.
+ */
 static void draw_name(void)
 {
     draw_bg();
@@ -674,6 +776,10 @@ static int wrap(const char *text, int cols, char lines[][64], int max_lines)
     return n;
 }
 
+/*
+ * Draws the error dialog: the title, what happened, the detail, the tips for
+ * what the player can try and the buttons.
+ */
 static void draw_error(void)
 {
     ErrCode code = err_current();
@@ -734,6 +840,11 @@ static void draw_error(void)
     }
 }
 
+/*
+ * Carries out the button the player chose in an error dialog: continue, quit,
+ * fix it (smaller window and no CRT effect) or try again (sound, settings or
+ * scores).
+ */
 static void error_action(ErrCode code, ErrAction act)
 {
     switch (act) {
@@ -772,6 +883,10 @@ static void error_action(ErrCode code, ErrAction act)
     }
 }
 
+/*
+ * The error dialog each frame. Left and right choose a button, confirm presses
+ * it. Back closes the dialog, except for errors the game cannot go on after.
+ */
 static void update_error(void)
 {
     const ErrInfo *e = err_info(err_current());
@@ -801,6 +916,12 @@ static bool music_wanted(void)
     return g_state != ST_PLAY && g_state != ST_PAUSE;
 }
 
+/*
+ * One step of the whole program, called exactly 60 times a second. It runs the
+ * current screen, counts the screens visited (for the self test), updates the
+ * sensor, starts and stops the music, and offers help if the computer is too
+ * slow.
+ */
 static void update_one(void)
 {
     err_tick();
@@ -821,6 +942,7 @@ static void update_one(void)
     case ST_CREDITS:  update_simple_back(); break;
     case ST_CAST:     update_cast(); break;
     case ST_DEMO:     update_demo(); break;
+    case ST_SPLASH:   update_splash(); break;
     }
     if (g_notice_timer > 0) g_notice_timer--;
     g_visited |= 1u << g_state;
@@ -848,6 +970,11 @@ static void update_one(void)
     } else g_slow_frames = 0;
 }
 
+/*
+ * Draws the little senseability panel (toggled with Tab or F9): pictures per
+ * second, steps per second, the slowest frame, button presses, deaths and the
+ * current difficulty nudge.
+ */
 static void draw_sense_meter(void)
 {
     const SenseInfo *s = sense_info();
@@ -862,6 +989,10 @@ static void draw_sense_meter(void)
     gfx_text(5, PLAY_TOP + 35, s->smooth ? "SMOOTH" : "NOT SMOOTH", s->smooth ? RGB(120,255,120) : RGB(255,100,100), 1);
 }
 
+/*
+ * Draws the current screen, then the notice line, the meter and any error
+ * dialog on top.
+ */
 static void draw_all(void)
 {
     switch (g_state) {
@@ -877,6 +1008,7 @@ static void draw_all(void)
     case ST_CREDITS:  draw_credits(); break;
     case ST_CAST:     draw_cast(); break;
     case ST_DEMO:     draw_demo(); break;
+    case ST_SPLASH:   draw_splash(); break;
     }
     if (g_notice_timer > 0) {
         gfx_blend_rect(0, SCREEN_H - 40, SCREEN_W, 12, RGB(0,0,0), 150);
@@ -886,6 +1018,10 @@ static void draw_all(void)
     if (err_pending()) draw_error();
 }
 
+/*
+ * Sends the finished picture to the window. With the CRT effect on it is first
+ * run through the TV filter. SDL scales it up with sharp pixels.
+ */
 static void present(void)
 {
     static uint32_t crt[SCREEN_W * SCREEN_H];
@@ -898,6 +1034,10 @@ static void present(void)
     SDL_RenderPresent(g_ren);
 }
 
+/*
+ * Saves the picture as shooter-upper-001.png, 002 and so on, using the first
+ * number that is free.
+ */
 static void save_screenshot(void)
 {
     char name[64];
@@ -911,7 +1051,7 @@ static void save_screenshot(void)
     else err_report(ERR_SCREENSHOT, name);
 }
 
-/* global keys: F11 / Alt+Enter fullscreen, F10 CRT, F9 meter, F12 screenshot */
+/* global keys: F11 / Alt+Enter fullscreen, F10 CRT, Tab or F9 meter, F12 screenshot */
 static void global_key(const SDL_Event *e)
 {
     if (e->type != SDL_KEYDOWN || e->key.repeat) return;
@@ -921,8 +1061,8 @@ static void global_key(const SDL_Event *e)
         g_set.fullscreen ^= 1; apply_window(); save_settings();
     } else if (sc == SDL_SCANCODE_F10) {
         g_set.crt ^= 1; save_settings();
-    } else if (sc == SDL_SCANCODE_F9) {
-        g_show_sense = !g_show_sense;
+    } else if (sc == SDL_SCANCODE_TAB || sc == SDL_SCANCODE_F9) {
+        if (g_rebind < 0) g_show_sense = !g_show_sense;     /* not while a key is being chosen */
     } else if (sc == SDL_SCANCODE_F12) {
         save_screenshot();
     }
@@ -935,6 +1075,7 @@ static void global_key(const SDL_Event *e)
 typedef struct { int frame; SDL_Scancode sc; int kind; } Step;     /* kind 0 tap, 1 press, 2 release */
 
 static const Step SCRIPT[] = {
+    {   2, SDL_SCANCODE_RETURN, 0 },                      /* skip the splash */
     {  10, SDL_SCANCODE_RETURN, 0 },                      /* START GAME      */
     {  30, SDL_SCANCODE_RETURN, 0 },                      /* NORMAL          */
     {  60, SDL_SCANCODE_Z, 1 }, { 60, SDL_SCANCODE_SPACE, 1 },
@@ -955,6 +1096,10 @@ static const Step SCRIPT[] = {
 
 static int g_release_at[SDL_NUM_SCANCODES];
 
+/*
+ * Self test only: pretends a key was pressed or released, through the same
+ * input code a real keyboard uses.
+ */
 static void send_key(SDL_Scancode sc, bool down)
 {
     SDL_Event e;
@@ -966,6 +1111,10 @@ static void send_key(SDL_Scancode sc, bool down)
     input_test_key(sc, down);
 }
 
+/*
+ * Self test only: at each frame, sends the key presses the script says should
+ * happen then, and releases keys that were only tapped.
+ */
 static void selftest_feed(int frame)
 {
     for (size_t i = 0; i < sizeof SCRIPT / sizeof SCRIPT[0]; i++) {
@@ -1031,6 +1180,13 @@ static void load_music(void)
     music_load_builtin();
 }
 
+/*
+ * Starts the game. First the command line options, then the special modes that
+ * need no window (write the song, smoke test, screenshots). After that the
+ * window, sound and input are set up and the main loop runs: collect events,
+ * run as many 1/60 second steps as the clock says are due, draw, show. At the
+ * end the settings are saved and everything is shut down.
+ */
 int main(int argc, char **argv)
 {
     bool force_fs = false, force_win = false;
@@ -1079,7 +1235,7 @@ int main(int argc, char **argv)
                 { "title", ST_TITLE }, { "diff", ST_DIFF }, { "help", ST_HELP }, { "settings", ST_SETTINGS },
                 { "controls", ST_CONTROLS }, { "scores", ST_SCORES }, { "credits", ST_CREDITS },
                 { "name", ST_NAME }, { "pause", ST_PAUSE }, { "play", ST_PLAY }, { "cast", ST_CAST },
-                { "error", ST_TITLE }
+                { "error", ST_TITLE }, { "splash", ST_SPLASH }
             };
             start_demo();
             for (int f = 0; f < 700; f++) { g_frame++; sim_step(true); }
@@ -1087,6 +1243,7 @@ int main(int argc, char **argv)
                 g_state = T[i].st;
                 g_rank = 0; g_menu_sel = 1;
                 g_frame = 200;
+                g_state_timer = 190;
                 if (T[i].st == ST_CAST) { cast_start(5); for (int f = 0; f < 330; f++) { g_frame++; cast_step(); } }
                 if (!strcmp(T[i].name, "error")) err_report(ERR_AUDIO_DEVICE, "no device found");
                 if (!strcmp(T[i].name, "play")) g_show_sense = true;
@@ -1196,7 +1353,7 @@ int main(int argc, char **argv)
         }
         if (g_selftest) {
             const unsigned need = (1u << ST_TITLE) | (1u << ST_DIFF) | (1u << ST_PLAY) | (1u << ST_PAUSE) |
-                                  (1u << ST_SETTINGS) | (1u << ST_CAST) | (1u << ST_DEMO);
+                                  (1u << ST_SETTINGS) | (1u << ST_CAST) | (1u << ST_DEMO) | (1u << ST_SPLASH);
             if ((g_visited & need) == need) {
                 printf("selftest ok: all screens reached, longest game %d frames, music volume %d\n",
                        g_max_play_frames, g_set.music);

@@ -85,6 +85,10 @@ static const ErrInfo INFO[ERR_COUNT] = {
         { "CONTINUE" }, { ERR_ACT_CONTINUE } },
 };
 
+/*
+ * Looks up the text for an error code. A code that does not exist gives the
+ * empty ERR_NONE entry, so the caller never gets a bad pointer.
+ */
 const ErrInfo *err_info(ErrCode c)
 {
     return (c > ERR_NONE && c < ERR_COUNT) ? &INFO[c] : &INFO[ERR_NONE];
@@ -94,6 +98,11 @@ const ErrInfo *err_info(ErrCode c)
 
 static char g_log_path[600];
 
+/*
+ * Tells the log where to write (log.txt inside the settings folder). If the
+ * old log has grown past 64 kB it is emptied, so the file never fills up the
+ * disk.
+ */
 void err_log_open(const char *dir)
 {
     snprintf(g_log_path, sizeof g_log_path, "%s/log.txt", dir);
@@ -106,6 +115,11 @@ void err_log_open(const char *dir)
     }
 }
 
+/*
+ * Writes one line to the screen (stderr) and to log.txt with the date and time
+ * in front. If the file cannot be opened the line is just skipped, because a
+ * broken log must never stop the game.
+ */
 static void log_line(const char *text)
 {
     fprintf(stderr, "%s\n", text);
@@ -131,8 +145,19 @@ static unsigned long g_frame;
 static unsigned long g_last[ERR_COUNT];
 static bool g_seen[ERR_COUNT];
 
+/*
+ * Called once per frame. It is the clock that err_report() uses to tell
+ * whether the same error has been reported recently.
+ */
 void err_tick(void) { g_frame++; }
 
+/*
+ * Reports a problem. It always goes in the log. It is only queued for a dialog
+ * if the same error has not been shown in the last 30 seconds and is not
+ * already waiting. Without that rule, a sound card that fails every frame
+ * would bury the player in dialogs. detail is extra text such as a file name,
+ * and can be NULL.
+ */
 void err_report(ErrCode c, const char *detail)
 {
     if (c <= ERR_NONE || c >= ERR_COUNT) return;
@@ -148,10 +173,20 @@ void err_report(ErrCode c, const char *detail)
     g_qn++;
 }
 
+/* True if at least one dialog is waiting to be shown. */
 bool        err_pending(void) { return g_qn > 0; }
+/*
+ * The error code of the dialog being shown now (the first in the queue), or
+ * ERR_NONE.
+ */
 ErrCode     err_current(void) { return g_qn ? g_q[0].code : ERR_NONE; }
+/* The extra detail text for the dialog being shown now. */
 const char *err_current_detail(void) { return g_qn ? g_q[0].detail : ""; }
 
+/*
+ * The player has answered the dialog. Removes it from the queue and moves the
+ * next one up.
+ */
 void err_dismiss(void)
 {
     if (!g_qn) return;
@@ -159,6 +194,11 @@ void err_dismiss(void)
     g_qn--;
 }
 
+/*
+ * Builds the same message as plain text (what happened, detail, tips) in the
+ * buffer out of size n. Used for the system message box when the game's own
+ * graphics are not available yet, for example if the window cannot be opened.
+ */
 void err_format_plain(ErrCode c, const char *detail, char *out, size_t n)
 {
     const ErrInfo *e = err_info(c);

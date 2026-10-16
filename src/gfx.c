@@ -20,11 +20,16 @@ void gfx_clear(uint32_t c)
     for (int i = 0; i < SCREEN_W * SCREEN_H; i++) g_fb[i] = c;
 }
 
+/*
+ * Sets one pixel. Anything outside the picture is ignored, so callers do not
+ * have to check the edges. Colors are 0xAARRGGBB, made with the RGB() macro.
+ */
 void gfx_pixel(int x, int y, uint32_t c)
 {
     if ((unsigned)x < SCREEN_W && (unsigned)y < SCREEN_H) g_fb[y * SCREEN_W + x] = c;
 }
 
+/* Draws a filled rectangle. The parts outside the picture are cut off. */
 void gfx_rect(int x, int y, int w, int h, uint32_t c)
 {
     for (int j = y; j < y + h; j++) {
@@ -34,6 +39,7 @@ void gfx_rect(int x, int y, int w, int h, uint32_t c)
     }
 }
 
+/* Draws a horizontal line from x0 to x1 at row y. */
 void gfx_hline(int x0, int x1, int y, uint32_t c)
 {
     if ((unsigned)y >= SCREEN_H) return;
@@ -42,6 +48,7 @@ void gfx_hline(int x0, int x1, int y, uint32_t c)
     for (int x = x0; x <= x1; x++) g_fb[y * SCREEN_W + x] = c;
 }
 
+/* Draws only the frame of a rectangle, one pixel thick. */
 void gfx_rect_outline(int x, int y, int w, int h, uint32_t c)
 {
     gfx_rect(x, y, w, 1, c);
@@ -50,6 +57,10 @@ void gfx_rect_outline(int x, int y, int w, int h, uint32_t c)
     gfx_rect(x + w - 1, y, 1, h, c);
 }
 
+/*
+ * Blends color a with color b. alpha 0 gives a, 255 gives b, and in between is
+ * a mix.
+ */
 static uint32_t mix(uint32_t a, uint32_t b, int alpha /*0..255 of b*/)
 {
     uint32_t ar = (a >> 16) & 255, ag = (a >> 8) & 255, ab = a & 255;
@@ -60,6 +71,10 @@ static uint32_t mix(uint32_t a, uint32_t b, int alpha /*0..255 of b*/)
     return RGB(r, g, bl);
 }
 
+/*
+ * Draws a see-through rectangle: the color c is blended over what is already
+ * there. alpha 0 is invisible, 255 is solid.
+ */
 void gfx_blend_rect(int x, int y, int w, int h, uint32_t c, int alpha)
 {
     for (int j = y; j < y + h; j++) {
@@ -71,6 +86,7 @@ void gfx_blend_rect(int x, int y, int w, int h, uint32_t c, int alpha)
     }
 }
 
+/* A color between a and b. t = 0 gives a, t = 1 gives b. */
 static uint32_t lerp_col(uint32_t a, uint32_t b, float t)
 {
     if (t < 0.f) t = 0.f;
@@ -108,6 +124,10 @@ static const uint8_t FONT[59][5] = {
     {0x07,0x08,0x70,0x08,0x07}, {0x61,0x51,0x49,0x45,0x43}
 };
 
+/*
+ * Finds a letter's place in the font table. Lower case is treated as upper
+ * case. Gives -1 for characters the font does not have.
+ */
 static int glyph_index(char ch)
 {
     if (ch >= 'a' && ch <= 'z') ch = (char)(ch - 32);
@@ -115,12 +135,20 @@ static int glyph_index(char ch)
     return ch - 32;
 }
 
+/*
+ * How many pixels wide a text is at the given size (6 pixels per letter, minus
+ * the gap after the last).
+ */
 int gfx_text_width(const char *s, int scale)
 {
     int n = (int)strlen(s);
     return n ? (n * 6 - 1) * scale : 0;
 }
 
+/*
+ * Draws one letter from the 5x7 font. The color fades from top to bottom, or
+ * stays flat if top and bottom are the same.
+ */
 static void draw_glyph(int x, int y, char ch, uint32_t top, uint32_t bottom, int scale)
 {
     if (ch == '_') { gfx_rect(x, y + 8 * scale, 5 * scale, scale, top); return; }
@@ -136,27 +164,35 @@ static void draw_glyph(int x, int y, char ch, uint32_t top, uint32_t bottom, int
     }
 }
 
+/* Draws text with a color that fades from top to bottom. */
 void gfx_text_grad(int x, int y, const char *s, int scale, uint32_t top, uint32_t bottom)
 {
     for (; *s; s++, x += 6 * scale) draw_glyph(x, y, *s, top, bottom, scale);
 }
 
+/* Draws plain text in one color. */
 void gfx_text(int x, int y, const char *s, uint32_t c, int scale)
 {
     gfx_text_grad(x, y, s, scale, c, c);
 }
 
+/*
+ * Draws text with a dark shadow one step down and to the right, so it reads on
+ * any background.
+ */
 void gfx_text_shadow(int x, int y, const char *s, uint32_t c, int scale)
 {
     gfx_text(x + scale, y + scale, s, RGB(10, 8, 30), scale);
     gfx_text(x, y, s, c, scale);
 }
 
+/* Draws text with a shadow, centered on the screen sideways. */
 void gfx_text_center(int y, const char *s, uint32_t c, int scale)
 {
     gfx_text_shadow((SCREEN_W - gfx_text_width(s, scale)) / 2, y, s, c, scale);
 }
 
+/* Draws centered text with a color fade and a dark outline. */
 void gfx_text_grad_center(int y, const char *s, int scale, uint32_t top, uint32_t bottom)
 {
     int x = (SCREEN_W - gfx_text_width(s, scale)) / 2;
@@ -322,6 +358,10 @@ static const Sprite S_HUMAN_UP= SPR(rows_human_up, pal_human, 6, 10);
 static const Sprite S_MINE    = SPR(rows_mine, pal_mine, 7, 7);
 static const Sprite S_BOMBICON= SPR(rows_bombicon, pal_bombicon, 5, 5);
 
+/*
+ * Turns one character of a sprite drawing ('0' to '9', 'a' to 'f') into a
+ * color number from 0 to 15. Anything else gives -1, and 0 means see-through.
+ */
 static int hexval(char ch)
 {
     if (ch >= '0' && ch <= '9') return ch - '0';
@@ -365,6 +405,7 @@ static void spr_center(const Sprite *s, int cx, int cy, bool flip)
     spr_draw(s, s->pal, cx - s->w / 2, cy - s->h / 2, flip, false);
 }
 
+/* Draws a tiny ship, used for the spare ships in the top panel. */
 void gfx_draw_ship_icon(int x, int y)
 {
     spr_draw(&S_SHIP, S_SHIP.pal, x, y, false, true);
@@ -386,13 +427,22 @@ static Popup    g_pop[MAXPOP];
 static int      g_shake, g_flash, g_planet_msg, g_bonus_msg;
 static uint32_t g_fxrng = 12345;
 
+/*
+ * A random number for the visual effects only. It is kept apart from the
+ * game's own generator, so the effects can never change how a game plays out.
+ */
 static uint32_t frnd(void)
 {
     g_fxrng ^= g_fxrng << 13; g_fxrng ^= g_fxrng >> 17; g_fxrng ^= g_fxrng << 5;
     return g_fxrng;
 }
+/* A random decimal number from 0 up to 1, for effects. */
 static float frndf(void) { return (float)(frnd() >> 8) * (1.0f / 16777216.0f); }
 
+/*
+ * Clears all particles, pop-up texts and screen effects. Called when a new
+ * game starts.
+ */
 void gfx_fx_reset(void)
 {
     memset(g_p, 0, sizeof g_p);
@@ -400,6 +450,10 @@ void gfx_fx_reset(void)
     g_shake = g_flash = g_planet_msg = g_bonus_msg = 0;
 }
 
+/*
+ * Creates one particle (a speck of fire or debris) in the first free slot.
+ * kind decides its colors.
+ */
 static void spawn_p(float x, float y, float vx, float vy, int life, int kind)
 {
     for (int i = 0; i < MAXP; i++) {
@@ -409,6 +463,7 @@ static void spawn_p(float x, float y, float vx, float vy, int life, int kind)
     }
 }
 
+/* Creates n particles at once that fly out in all directions, for explosions. */
 static void burst(float x, float y, int n, float smin, float smax, int lmin, int lmax, int kind)
 {
     for (int i = 0; i < n; i++) {
@@ -418,6 +473,7 @@ static void burst(float x, float y, int n, float smin, float smax, int lmin, int
     }
 }
 
+/* Starts a small floating text, for example the points for saving a humanoid. */
 static void popup(float x, float y, const char *text)
 {
     for (int i = 0; i < MAXPOP; i++) {
@@ -428,6 +484,11 @@ static void popup(float x, float y, const char *text)
     }
 }
 
+/*
+ * Turns a game event into something to look at: explosions, screen shake, a
+ * white flash, pop-up points. The game logic only reports what happened, and
+ * this is where it gets a look.
+ */
 void gfx_fx_event(const Event *e, const Game *g)
 {
     switch (e->type) {
@@ -467,6 +528,10 @@ void gfx_fx_event(const Event *e, const Game *g)
     }
 }
 
+/*
+ * Moves all particles and counts down the effects once per game step. Also
+ * adds sparks behind the ship while it thrusts.
+ */
 void gfx_fx_step(const Game *g)
 {
     for (int i = 0; i < MAXP; i++) {
@@ -554,6 +619,11 @@ void gfx_init(void)
     gfx_fx_reset();
 }
 
+/*
+ * Draws the whole background: the sky, a slow nebula, three layers of stars
+ * and mountains. camx is where the camera is, and each layer moves at its own
+ * speed, which gives the feeling of depth.
+ */
 void gfx_draw_space_bg(float camx, bool planet, int frame)
 {
     const uint32_t *band = g_sky_band[planet ? 0 : 1];
@@ -618,8 +688,13 @@ void gfx_draw_space_bg(float camx, bool planet, int frame)
 
 static int s_ox, s_oy;
 
+/* Converts a position in the world to a position on the screen. */
 static int sx_of(const Game *g, float wx) { return (int)floorf(wrapdx(g->camx, wx)) + s_ox; }
 
+/*
+ * Draws the ground column by column, in bands of color from a bright edge to
+ * dark rock, with a shimmer along the top.
+ */
 static void draw_terrain(const Game *g, int frame)
 {
     float t = (float)frame * 0.04f;
@@ -644,6 +719,10 @@ static void draw_terrain(const Game *g, int frame)
     }
 }
 
+/*
+ * Draws one enemy with the right sprite and animation frame. Enemies far
+ * outside the screen are skipped.
+ */
 static void draw_enemy(const Game *g, const Enemy *e, int frame)
 {
     int x = sx_of(g, e->x), y = (int)e->y + s_oy;
@@ -663,6 +742,10 @@ static void draw_enemy(const Game *g, const Enemy *e, int frame)
     }
 }
 
+/*
+ * Draws the player's ship, with an engine flame when it thrusts. It blinks
+ * while the ship is protected and is hidden during hyperspace.
+ */
 static void draw_ship(const Game *g, int frame)
 {
     const Ship *s = &g->ship;
@@ -683,6 +766,10 @@ static void draw_ship(const Game *g, int frame)
     spr_draw_shear(&S_SHIP, x - 8, y - 4, left, s->vy);
 }
 
+/*
+ * Draws one laser shot as a bright line with a glow that fades towards the
+ * tail.
+ */
 static void draw_laser(const Game *g, const Shot *sh)
 {
     int x = sx_of(g, sh->x), y = (int)sh->y + s_oy;
@@ -699,6 +786,10 @@ static void draw_laser(const Game *g, const Shot *sh)
     }
 }
 
+/*
+ * Draws the top panel: score, spare ships, smart bombs, wave number, humanoids
+ * left and the radar that shows the whole world.
+ */
 static void draw_hud(const Game *g, int frame)
 {
     /* panel */
@@ -789,6 +880,10 @@ static void draw_hud(const Game *g, int frame)
     #undef RADAR_XY
 }
 
+/*
+ * Draws the big messages on top of the game: wave number, wave complete, game
+ * over, planet destroyed, extra ship, and the floating point texts.
+ */
 static void draw_overlays(const Game *g, int frame)
 {
     char buf[64];
@@ -824,6 +919,10 @@ static void draw_overlays(const Game *g, int frame)
     }
 }
 
+/*
+ * The color of a particle. It changes as the particle ages, for example from
+ * white through yellow and orange to dark red for fire.
+ */
 static uint32_t particle_color(const Particle *p)
 {
     float f = (float)p->life / (float)p->max;
@@ -847,6 +946,11 @@ static uint32_t particle_color(const Particle *p)
     }
 }
 
+/*
+ * Draws one whole picture of the game: background, ground, humanoids, mines,
+ * enemies, bullets, lasers, ship, particles, flash and then the panel and
+ * messages. Screen shake moves the world but never the panel.
+ */
 void gfx_draw_game(const Game *g, int frame)
 {
     s_ox = s_oy = 0;
@@ -929,6 +1033,11 @@ static const uint32_t RAMPS[RAMP_COUNT][8] = {
     { RGB(150,160,215), RGB(125,135,195), RGB(105,115,175), RGB(160,170,225), RGB(85,95,155),   RGB(70,78,135),  RGB(55,62,110),  RGB(40,46,86) },   /* dim   */
 };
 
+/*
+ * Builds the two big fonts from the plain 5x7 one when first needed: the
+ * strokes are made bolder, and for the big size the corners are smoothed with
+ * the EPX rule so diagonals look round.
+ */
 static void font_build(void)
 {
     for (int gi = 0; gi < 59; gi++) {
@@ -961,6 +1070,10 @@ static void font_build(void)
     g_font_ready = true;
 }
 
+/*
+ * Finds the letter to draw (small or big). Builds the fonts on first use.
+ * Returns NULL for characters that are not in the font.
+ */
 static const Glyph *glyph_of(char ch, int big)
 {
     if (!g_font_ready) font_build();
@@ -969,6 +1082,10 @@ static const Glyph *glyph_of(char ch, int big)
     return big ? &g_big[ch - 32] : &g_small[ch - 32];
 }
 
+/*
+ * Draws one square of size sc. A pixel of the font is drawn as such a block
+ * when the font is scaled up.
+ */
 static void block(int x, int y, int sc, uint32_t c) { gfx_rect(x, y, sc, sc, c); }
 
 /* pass 0 = shadow, 1 = outline, 2 = fill */
@@ -999,29 +1116,41 @@ static void amiga_pass(int x, int y, const char *s, int ramp, int big, int sc, i
     }
 }
 
+/* How wide a text will be in the chrome font, in pixels. */
 int gfx_amiga_width(const char *s, int big, int scale)
 {
     int n = (int)strlen(s);
     return n ? (n * (big ? 13 : 7) - 1) * scale : 0;
 }
 
+/*
+ * Draws chrome lettering where every letter bobs up and down on a wave. amp is
+ * how far, frame moves the wave.
+ */
 void gfx_amiga_wave(int x, int y, const char *s, int ramp, int big, int sc, int frame, int amp)
 {
     for (int pass = 0; pass < 3; pass++) amiga_pass(x, y, s, ramp, big, sc, pass, frame, amp);
 }
 
+/* Draws chrome lettering that stands still. */
 void gfx_amiga_text(int x, int y, const char *s, int ramp, int big, int sc)
 {
     gfx_amiga_wave(x, y, s, ramp, big, sc, 0, 0);
 }
 
+/* Draws chrome lettering centered on the screen. */
 void gfx_amiga_center(int y, const char *s, int ramp, int big, int sc)
 {
     gfx_amiga_text((SCREEN_W - gfx_amiga_width(s, big, sc)) / 2, y, s, ramp, big, sc);
 }
 
+/* Draws a big centered heading in chrome lettering. */
 void gfx_title(int y, const char *s, int ramp) { gfx_amiga_center(y, s, ramp, 1, 1); }
 
+/*
+ * Draws one menu line. The chosen line is gold with little arrows that bob,
+ * the others are dim.
+ */
 void gfx_menu_item(int y, const char *s, bool selected, int frame)
 {
     int w = gfx_amiga_width(s, 0, 1);
@@ -1055,6 +1184,7 @@ void gfx_copper_bars(int y, int h, int frame)
     }
 }
 
+/* How many frames it takes for the scrolling text to pass once. */
 int gfx_scroller_length(const char *text) { return (int)((strlen(text) * 7 + SCREEN_W) / 2); }
 
 /* A text that scrolls sideways while each letter rides a sine wave. */
@@ -1088,6 +1218,10 @@ static void spr_draw_scaled(const Sprite *s, const uint32_t *pal, int cx, int cy
         }
 }
 
+/*
+ * Draws one of the game's characters at any size, with its animation. Used by
+ * the parade, the splash and similar screens.
+ */
 void gfx_draw_actor(ActorKind k, int cx, int cy, int frame, bool flip, int sc)
 {
     switch (k) {
@@ -1106,6 +1240,10 @@ void gfx_draw_actor(ActorKind k, int cx, int cy, int frame, bool flip, int sc)
     }
 }
 
+/*
+ * Draws the SHOOTER UPPER logo with bobbing letters and a bright glint that
+ * sweeps across.
+ */
 void gfx_draw_logo(int y, int frame)
 {
     /* each letter bobs on its own sine phase, gold on top, ice blue below */
@@ -1125,6 +1263,95 @@ void gfx_draw_logo(int y, int frame)
 }
 
 /* ======================================================================== */
+/* start-up splash: warp stars, the title slides in, credits type themselves */
+/* ======================================================================== */
+
+/* t is the number of frames since the splash began (0 to SPLASH_FRAMES). */
+void gfx_draw_splash(int t)
+{
+    const float cx = SCREEN_W / 2.f, cy = 62.f;
+    gfx_clear(RGB(2, 2, 14));
+
+    /* 1. a star field flying towards us, slowing down as the title arrives */
+    float speed = 0.4f + (t < 140 ? 7.f * (1.f - (float)t / 140.f) : 0.f);
+    float travel = t < 140 ? 0.4f * (float)t + 7.f * ((float)t - (float)(t * t) / 280.f)
+                           : 0.4f * 140.f + 7.f * 70.f + 0.4f * (float)(t - 140);
+    for (int j = 0; j < 110; j++) {
+        float ang = (float)j * 2.399963f;                 /* golden angle spreads them evenly */
+        float k = 0.6f + (float)(j % 7) * 0.25f;          /* nearer stars move faster */
+        float d = fmodf(6.f + (float)((j * 37) % 100) + travel * k, 230.f);
+        float dx = cosf(ang), dy = sinf(ang);
+        int br = 60 + (int)(d * 0.9f);
+        if (br > 255) br = 255;
+        int len = (int)(speed * k * 1.6f);
+        for (int s = 0; s <= len; s++) {                   /* the streak behind the star */
+            float dd = d - (float)s;
+            if (dd < 0.f) break;
+            int x = (int)(cx + dx * dd * 1.4f), y = (int)(cy + dy * dd);
+            int b2 = br - s * 14;
+            if (b2 < 20) b2 = 20;
+            gfx_pixel(x, y, RGB(b2, b2, b2 > 235 ? 255 : b2 + 20));
+        }
+    }
+
+    /* 2. the two words slide in from opposite sides and settle with a flash */
+    const int logo_y = 30;
+    if (t >= 40) {
+        float u = (float)(t - 40) / 70.f;
+        if (u > 1.f) u = 1.f;
+        float e = 1.f - (1.f - u) * (1.f - u) * (1.f - u);
+        int w1 = gfx_amiga_width("SHOOTER", 1, 2), w2 = gfx_amiga_width("UPPER", 1, 3);
+        int x1 = (int)(-(float)w1 + e * (float)((SCREEN_W - w1) / 2 + w1));
+        int x2 = (int)((float)SCREEN_W - e * (float)(SCREEN_W - (SCREEN_W - w2) / 2));
+        if (t < 110) {
+            gfx_amiga_wave(x1, logo_y, "SHOOTER", RAMP_GOLD, 1, 2, t, 3);
+            gfx_amiga_wave(x2, logo_y + 34, "UPPER", RAMP_ICE, 1, 3, t + 20, 3);
+        } else {
+            gfx_draw_logo(logo_y, t);                      /* same letters, now with the glint */
+        }
+    }
+    if (t >= 110 && t < 140) {                             /* flash and a ring that spreads */
+        int a = 150 - (t - 110) * 5;
+        if (a > 0) gfx_blend_rect(0, 0, SCREEN_W, SCREEN_H, RGB(255, 255, 255), a);
+        float r = (float)(t - 110) * 7.f;
+        for (int i = 0; i < 160; i++) {
+            float th = (float)i * 6.2831853f / 160.f;
+            gfx_pixel((int)(cx + cosf(th) * r * 1.4f), (int)(cy + 14.f + sinf(th) * r), RGB(255, 235, 150));
+        }
+    }
+
+    /* 3. the ship crosses the screen and the credits type themselves in */
+    if (t >= 130) {
+        int n = (t - 130) / 2;
+        char buf[48];
+        static const char *const L1 = "AN IDEA BY MARKO TAHVANAINEN";
+        static const char *const L2 = "DESIGNED AND BUILT BY CLAUDE";
+        static const char *const L3 = "COPYRIGHT 2026 MARKO TAHVANAINEN AND CLAUDE";
+        snprintf(buf, sizeof buf, "%.*s", n, L1);
+        gfx_text(( SCREEN_W - gfx_text_width(L1, 1)) / 2, 142, buf, RGB(255, 225, 120), 1);
+        snprintf(buf, sizeof buf, "%.*s", n > 30 ? n - 30 : 0, L2);
+        gfx_text((SCREEN_W - gfx_text_width(L2, 1)) / 2, 154, buf, RGB(130, 225, 255), 1);
+        snprintf(buf, sizeof buf, "%.*s", n > 60 ? n - 60 : 0, L3);
+        gfx_text((SCREEN_W - gfx_text_width(L3, 1)) / 2, 176, buf, RGB(120, 130, 190), 1);
+    }
+    if (t >= 150 && t < 240) {
+        int sx = -20 + (t - 150) * 4;
+        int sy = 124 + (int)(sinf((float)t * 0.15f) * 4.f);
+        for (int i = 1; i < 14; i++)                       /* engine trail */
+            gfx_rect(sx - i * 3 - 8, sy + (i & 1), 3, 1, RGB(255, 170 - i * 8 > 0 ? 170 - i * 8 : 0, 40));
+        gfx_draw_actor(ACTOR_SHIP, sx, sy, t, false, 2);
+    }
+    if (t >= 170 && ((t / 24) & 1) == 0)
+        gfx_text_center(204, "PRESS ANY KEY", RGB(190, 200, 245), 1);
+
+    /* 4. fade to black at the end */
+    if (t > SPLASH_FRAMES - 24) {
+        int a = (t - (SPLASH_FRAMES - 24)) * 11;
+        gfx_blend_rect(0, 0, SCREEN_W, SCREEN_H, RGB(0, 0, 0), a > 255 ? 255 : a);
+    }
+}
+
+/* ======================================================================== */
 /* CRT effect: curved screen, scanlines, vignette                           */
 /* ======================================================================== */
 
@@ -1132,6 +1359,11 @@ static int32_t g_crt_src[SCREEN_W * SCREEN_H];
 static uint8_t g_crt_lum[SCREEN_W * SCREEN_H];
 static bool    g_crt_ready;
 
+/*
+ * Works out, once, where each screen pixel should read from to bend the
+ * picture like an old tube, and how dark it should be (scanlines and darker
+ * corners).
+ */
 static void crt_build(void)
 {
     for (int y = 0; y < SCREEN_H; y++) {
@@ -1154,6 +1386,10 @@ static void crt_build(void)
     g_crt_ready = true;
 }
 
+/*
+ * Makes the old TV look: copies the picture into dst with a curve, dark
+ * scanlines and a soft vignette. The original picture is left alone.
+ */
 void gfx_crt(uint32_t *dst)
 {
     if (!g_crt_ready) crt_build();
@@ -1177,6 +1413,7 @@ void gfx_crt(uint32_t *dst)
 /* ======================================================================== */
 
 static uint32_t crc_table[256];
+/* Builds the table the PNG checksum (CRC32) needs. */
 static void crc_init(void)
 {
     for (uint32_t n = 0; n < 256; n++) {
@@ -1185,17 +1422,23 @@ static void crc_init(void)
         crc_table[n] = c;
     }
 }
+/* Adds some bytes to a running CRC32 checksum. */
 static uint32_t crc_update(uint32_t crc, const uint8_t *buf, size_t len)
 {
     uint32_t c = crc;
     for (size_t i = 0; i < len; i++) c = crc_table[(c ^ buf[i]) & 255] ^ (c >> 8);
     return c;
 }
+/*
+ * Writes a 32-bit number to the file, most significant byte first, as PNG
+ * wants it.
+ */
 static void put32(FILE *f, uint32_t v)
 {
     uint8_t b[4] = { (uint8_t)(v >> 24), (uint8_t)(v >> 16), (uint8_t)(v >> 8), (uint8_t)v };
     fwrite(b, 1, 4, f);
 }
+/* Writes one PNG chunk: length, type, data and checksum. */
 static void chunk(FILE *f, const char *type, const uint8_t *data, uint32_t len)
 {
     put32(f, len);
@@ -1206,6 +1449,11 @@ static void chunk(FILE *f, const char *type, const uint8_t *data, uint32_t len)
     put32(f, crc ^ 0xFFFFFFFFu);
 }
 
+/*
+ * Saves the picture as a PNG file, without compression (simple and always
+ * correct). Used for screenshots with F12. Returns false if the file could not
+ * be written.
+ */
 bool gfx_save_png(const char *path, const uint32_t *px)
 {
     crc_init();

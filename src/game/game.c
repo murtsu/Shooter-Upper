@@ -35,6 +35,7 @@ float wrapdx(float from, float to)
 static float g_terrain[WORLD_W];
 static bool  g_terrain_ready = false;
 
+/* Fills the ground height table once, by adding four sine waves together. */
 static void terrain_build(void)
 {
     for (int i = 0; i < WORLD_W; i++) {
@@ -48,6 +49,10 @@ static void terrain_build(void)
     g_terrain_ready = true;
 }
 
+/*
+ * The height of the ground at x. Looks it up in the table, so it is cheap to
+ * call many times a frame.
+ */
 float terrain_y(float x)
 {
     if (!g_terrain_ready) terrain_build();
@@ -67,7 +72,9 @@ static uint32_t rnd(Game *g)
     g->rng = x;
     return x;
 }
+/* A random decimal number from 0 up to (but not including) 1. */
 static float rndf(Game *g) { return (float)(rnd(g) >> 8) * (1.0f / 16777216.0f); }
+/* A random whole number from lo to hi, both included. */
 static int   rndi(Game *g, int lo, int hi) { return lo + (int)(rnd(g) % (uint32_t)(hi - lo + 1)); }
 
 /* ======================================================================== */
@@ -85,9 +92,15 @@ static void ev(Game *g, int type, float x, float y, int arg)
     }
 }
 
+/* Keeps v between lo and hi. */
 static float clampf(float v, float lo, float hi) { return v < lo ? lo : (v > hi ? hi : v); }
+/* Gives -1 for a negative number and 1 for anything else. */
 static float signf(float v) { return v < 0.f ? -1.f : 1.f; }
 
+/*
+ * Adds points. Every BONUS_EVERY points the player gets an extra ship and an
+ * extra smart bomb, up to the maximum.
+ */
 static void add_score(Game *g, int pts)
 {
     g->score += (uint32_t)pts;
@@ -99,6 +112,7 @@ static void add_score(Game *g, int pts)
     }
 }
 
+/* How many humanoids are still alive, in any state. */
 int game_humanoids_alive(const Game *g)
 {
     int n = 0;
@@ -106,6 +120,7 @@ int game_humanoids_alive(const Game *g)
     return n;
 }
 
+/* How many humanoids the ship is carrying right now. */
 int game_carried(const Game *g)
 {
     int n = 0;
@@ -113,6 +128,10 @@ int game_carried(const Game *g)
     return n;
 }
 
+/*
+ * How many enemies are alive. Baiters can be left out, because they keep
+ * coming and must not stop a wave from ending.
+ */
 int game_enemy_count(const Game *g, bool include_baiters)
 {
     int n = 0;
@@ -131,6 +150,10 @@ static float floor_y(const Game *g, float x)
     return g->planet_alive ? terrain_y(x) - 6.f : (float)SCREEN_H - 6.f;
 }
 
+/*
+ * How big an enemy is for hit tests. A bigger number means it is easier to
+ * hit.
+ */
 static float enemy_radius(EnemyType t)
 {
     switch (t) {
@@ -144,6 +167,7 @@ static float enemy_radius(EnemyType t)
     }
 }
 
+/* How many points the player gets for killing this kind of enemy. */
 static int enemy_points(EnemyType t)
 {
     switch (t) {
@@ -192,6 +216,11 @@ static bool shoot_tick(Game *g, Enemy *e)
     return e->shoot <= 0;
 }
 
+/*
+ * Makes an enemy bullet fly from (x, y) towards the ship. aim_error makes it
+ * miss a little, and the difficulty setting scales both the speed and the aim.
+ * Does nothing if the ship is dead or hidden in hyperspace.
+ */
 static void fire_bullet(Game *g, float x, float y, float speed, float aim_error)
 {
     speed *= g->tune.bullet_speed;
@@ -237,6 +266,7 @@ static void check_planet(Game *g)
     }
 }
 
+/* Kills humanoid number i and then checks if that was the last one. */
 static void humanoid_die(Game *g, int i)
 {
     Humanoid *h = &g->hum[i];
@@ -246,6 +276,7 @@ static void humanoid_die(Game *g, int i)
     check_planet(g);
 }
 
+/* Stands all humanoids on the ground, spread out around the world. */
 static void place_humanoids(Game *g)
 {
     for (int i = 0; i < HUMANOID_COUNT; i++) {
@@ -276,6 +307,10 @@ static void release_humanoid(Game *g, const Enemy *e)
     }
 }
 
+/*
+ * Destroys enemy number i: frees its humanoid, gives points and queues an
+ * explosion. A Pod also bursts into a few Swarmers.
+ */
 static void kill_enemy(Game *g, int i)
 {
     Enemy *e = &g->en[i];
@@ -300,6 +335,10 @@ static void kill_enemy(Game *g, int i)
     }
 }
 
+/*
+ * The player's ship is destroyed. Passengers fall. If there are spare ships
+ * the ship comes back after a short wait, otherwise the game is over.
+ */
 static void ship_die(Game *g)
 {
     Ship *s = &g->ship;
@@ -326,11 +365,17 @@ static void ship_die(Game *g)
     }
 }
 
+/* True if x is inside what the camera shows, with a small margin. */
 static bool on_screen(const Game *g, float x)
 {
     return fabsf(wrapdx(g->camx + SCREEN_W * 0.5f, x)) < SCREEN_W * 0.5f + 8.f;
 }
 
+/*
+ * Kills everything on screen. It runs two passes so the Swarmers that appear
+ * when Pods burst are caught too. Bullets and mines on screen are removed as
+ * well.
+ */
 static void smart_bomb(Game *g)
 {
     ev(g, EV_SMARTBOMB, g->ship.x, g->ship.y, 0);
@@ -371,6 +416,10 @@ static void start_wave(Game *g)
     ev(g, EV_WAVE_START, 0, 0, w);
 }
 
+/*
+ * Sends in the next group of enemies from the waiting queue: up to five
+ * Landers, plus a Bomber and a Pod if any are left.
+ */
 static void spawn_batch(Game *g)
 {
     int landers = g->q_lander < 5 ? g->q_lander : 5;
@@ -403,12 +452,17 @@ static const Tuning PRESETS[DIFF_COUNT] = {
     { 1.30f, 1.30f, 1.20f, 0.60f, 1, 1, 1.f },   /* insane */
 };
 
+/* The name of a difficulty level as shown on screen. */
 const char *game_difficulty_name(Difficulty d)
 {
     static const char *n[DIFF_COUNT] = { "EASY", "NORMAL", "HARD", "INSANE" };
     return (d >= 0 && d < DIFF_COUNT) ? n[d] : "?";
 }
 
+/*
+ * Applies a difficulty preset: enemy speed, shot rate, aim and the number of
+ * ships and bombs to start with.
+ */
 void game_set_difficulty(Game *g, Difficulty d)
 {
     if (d < 0 || d >= DIFF_COUNT) d = DIFF_NORMAL;
@@ -418,6 +472,10 @@ void game_set_difficulty(Game *g, Difficulty d)
     g->bombs = g->tune.bombs;
 }
 
+/*
+ * Starts a new game with the given random seed. Everything is cleared first,
+ * so two games with the same seed and the same key presses are exactly alike.
+ */
 void game_init(Game *g, uint32_t seed)
 {
     memset(g, 0, sizeof *g);
@@ -605,6 +663,12 @@ static int pick_target(Game *g, const Enemy *e)
     return best;
 }
 
+/*
+ * The Lander has three moods. SEEK: float above the ground until a humanoid is
+ * in sight. DESCEND: dive onto it. ABDUCT: carry it up. If it reaches the top
+ * the humanoid is lost and the Lander turns into a Mutant. ws is the enemy
+ * speed for this wave.
+ */
 static void update_lander(Game *g, int idx, float ws)
 {
     Enemy *e = &g->en[idx];
@@ -665,6 +729,10 @@ static void update_lander(Game *g, int idx, float ws)
     }
 }
 
+/*
+ * The Mutant chases the ship and shoots a lot. It wobbles up and down so it is
+ * harder to hit.
+ */
 static void update_mutant(Game *g, Enemy *e, float ws)
 {
     const Ship *s = &g->ship;
@@ -688,6 +756,10 @@ static void update_mutant(Game *g, Enemy *e, float ws)
     }
 }
 
+/*
+ * The Baiter is fast. It homes in on the ship and fires often. It arrives when
+ * the player takes too long.
+ */
 static void update_baiter(Game *g, Enemy *e, float ws)
 {
     const Ship *s = &g->ship;
@@ -705,6 +777,10 @@ static void update_baiter(Game *g, Enemy *e, float ws)
     }
 }
 
+/*
+ * The Bomber drifts along in a wave pattern and drops a mine every now and
+ * then.
+ */
 static void update_bomber(Game *g, Enemy *e)
 {
     e->vy = sinf(e->phase * 1.5f) * 0.7f;
@@ -721,12 +797,20 @@ static void update_bomber(Game *g, Enemy *e)
     }
 }
 
+/*
+ * The Pod just floats around slowly. It is dangerous only when shot, because
+ * of the Swarmers inside.
+ */
 static void update_pod(Enemy *e)
 {
     e->vy = sinf(e->phase) * 0.5f;
     if (e->vx == 0.f) e->vx = 0.3f;
 }
 
+/*
+ * The Swarmer chases the ship in a wobbling line and fires only when the ship
+ * is at about the same height.
+ */
 static void update_swarmer(Game *g, Enemy *e, float ws)
 {
     const Ship *s = &g->ship;
@@ -743,6 +827,11 @@ static void update_swarmer(Game *g, Enemy *e, float ws)
     }
 }
 
+/*
+ * Moves every enemy one step. The speed grows with the wave number and is
+ * scaled by the difficulty and the adaptive level. Each kind has its own
+ * function. Then the enemy is kept inside the play area.
+ */
 static void update_enemies(Game *g)
 {
     int wv = g->wave > 16 ? 15 : g->wave - 1;
@@ -796,6 +885,10 @@ static void update_hazards(Game *g)
     }
 }
 
+/*
+ * Handles falling humanoids: the ship can catch them (bonus), a short fall is
+ * survived (bonus) and a long fall or a dead planet means death.
+ */
 static void update_humanoids(Game *g)
 {
     const Ship *s = &g->ship;
@@ -910,6 +1003,10 @@ static void spawn_baiters(Game *g)
     if (i >= 0) { g->baiters_spawned++; ev(g, EV_BAITER, g->en[i].x, g->en[i].y, 0); }
 }
 
+/*
+ * When a wave is cleared, removes Baiters, bullets and mines so the player is
+ * safe during the bonus count.
+ */
 static void clear_baiters_and_hazards(Game *g)
 {
     for (int i = 0; i < MAX_ENEMIES; i++) {
@@ -923,6 +1020,11 @@ static void clear_baiters_and_hazards(Game *g)
     for (int i = 0; i < MAX_MINES; i++)   g->mine[i].active = false;
 }
 
+/*
+ * The heart of the game. One call moves the world forward exactly 1/60 of a
+ * second: ship, shots, enemies, bullets, humanoids and hits, then the wave
+ * rules (spawn more, wave cleared, game over) and last the camera.
+ */
 void game_step(Game *g, const Controls *c)
 {
     g->nev = 0;
