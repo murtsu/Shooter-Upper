@@ -1334,8 +1334,8 @@ void gfx_draw_splash(int t)
         snprintf(buf, sizeof buf, "%.*s", n > 60 ? n - 60 : 0, L3);
         gfx_text((SCREEN_W - gfx_text_width(L3, 1)) / 2, 176, buf, RGB(120, 130, 190), 1);
     }
-    if (t >= 150 && t < 240) {
-        int sx = -20 + (t - 150) * 4;
+    if (t >= 150 && (t - 150) % 240 < 90) {                /* a pass every 4 seconds */
+        int sx = -20 + ((t - 150) % 240) * 4;
         int sy = 124 + (int)(sinf((float)t * 0.15f) * 4.f);
         for (int i = 1; i < 14; i++)                       /* engine trail */
             gfx_rect(sx - i * 3 - 8, sy + (i & 1), 3, 1, RGB(255, 170 - i * 8 > 0 ? 170 - i * 8 : 0, 40));
